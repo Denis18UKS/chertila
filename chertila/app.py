@@ -8,56 +8,80 @@ from .model import Drawing
 from .variants import all_drawings
 
 
+_active_window = None
+
+
+def _set_active_window(window: object) -> None:
+    global _active_window
+    _active_window = window
+
+
+def _get_active_window() -> object | None:
+    if _active_window is not None:
+        return _active_window
+
+    try:
+        import webview
+    except ImportError:
+        return None
+
+    return webview.windows[0] if webview.windows else None
+
+
 class ChertilaApi:
-    """Small pywebview bridge used by the HTML interface."""
+    """Small pywebview bridge used by the HTML interface.
+
+    Keep this object free of pywebview window/native objects. pywebview
+    recursively inspects public API attributes while building the JavaScript
+    bridge, and native WebView2/.NET objects can break that inspection on
+    Windows.
+    """
+
+    __slots__ = ("_drawings", "_selected_key", "_reference_path", "_status")
 
     def __init__(self) -> None:
-        self.drawings = all_drawings()
-        self.selected_key = next(iter(self.drawings))
-        self.reference_path = ""
-        self.status = "Выберите схему варианта 14 и экспортируйте SVG/DXF или в КОМПАС-3D."
-        self.window: Any | None = None
+        self._drawings = all_drawings()
+        self._selected_key = next(iter(self._drawings))
+        self._reference_path = ""
+        self._status = "Выберите схему варианта 14 и экспортируйте SVG/DXF или в КОМПАС-3D."
 
-    def set_window(self, window: Any) -> None:
-        self.window = window
-
-    @property
-    def drawing(self) -> Drawing:
-        return self.drawings[self.selected_key]
+    def _drawing(self) -> Drawing:
+        return self._drawings[self._selected_key]
 
     def get_state(self) -> dict[str, Any]:
         return {
-            "drawings": list(self.drawings),
-            "selected": self.selected_key,
-            "orientation": self.drawing.orientation,
-            "referencePath": self.reference_path,
-            "status": self.status,
-            "svg": drawing_to_svg(self.drawing),
+            "drawings": list(self._drawings),
+            "selected": self._selected_key,
+            "orientation": self._drawing().orientation,
+            "referencePath": self._reference_path,
+            "status": self._status,
+            "svg": drawing_to_svg(self._drawing()),
         }
 
     def select_drawing(self, key: str) -> dict[str, Any]:
-        if key not in self.drawings:
-            self.status = f"Схема не найдена: {key}"
+        if key not in self._drawings:
+            self._status = f"Схема не найдена: {key}"
             return self.get_state()
-        self.selected_key = key
-        self.status = f"Открыта схема: {key} ({self.drawing.orientation})."
+        self._selected_key = key
+        self._status = f"Открыта схема: {key} ({self._drawing().orientation})."
         return self.get_state()
 
     def choose_reference(self) -> dict[str, Any]:
-        if self.window is None:
-            self.status = "Окно pywebview ещё не готово."
+        window = _get_active_window()
+        if window is None:
+            self._status = "Окно pywebview ещё не готово."
             return self.get_state()
 
         import webview
 
-        paths = self.window.create_file_dialog(
+        paths = window.create_file_dialog(
             webview.OPEN_DIALOG,
             allow_multiple=False,
             file_types=("Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif)", "All files (*.*)"),
         )
         if paths:
-            self.reference_path = str(Path(paths[0]).name)
-            self.status = f"Референс добавлен: {paths[0]}"
+            self._reference_path = str(Path(paths[0]).name)
+            self._status = f"Референс добавлен: {paths[0]}"
         return self.get_state()
 
     def export_svg(self) -> dict[str, Any]:
@@ -68,24 +92,25 @@ class ChertilaApi:
 
     def export_kompas(self) -> dict[str, Any]:
         try:
-            export_to_kompas(self.drawing)
+            export_to_kompas(self._drawing())
         except RuntimeError as exc:
-            self.status = str(exc)
+            self._status = str(exc)
         else:
-            self.status = "Чертёж передан в КОМПАС-3D."
+            self._status = "Чертёж передан в КОМПАС-3D."
         return self.get_state()
 
     def _export_file(self, extension: str) -> dict[str, Any]:
-        if self.window is None:
-            self.status = "Окно pywebview ещё не готово."
+        window = _get_active_window()
+        if window is None:
+            self._status = "Окно pywebview ещё не готово."
             return self.get_state()
 
         import webview
 
         file_type = "SVG (*.svg)" if extension == "svg" else "DXF (*.dxf)"
-        path = self.window.create_file_dialog(
+        path = window.create_file_dialog(
             webview.SAVE_DIALOG,
-            save_filename=f"{self.drawing.name}.{extension}",
+            save_filename=f"{self._drawing().name}.{extension}",
             file_types=(file_type, "All files (*.*)"),
         )
         if not path:
@@ -95,10 +120,10 @@ class ChertilaApi:
         if output.suffix.lower() != f".{extension}":
             output = output.with_suffix(f".{extension}")
         if extension == "svg":
-            save_svg(self.drawing, output)
+            save_svg(self._drawing(), output)
         else:
-            save_dxf(self.drawing, output)
-        self.status = f"{extension.upper()} сохранён: {output}"
+            save_dxf(self._drawing(), output)
+        self._status = f"{extension.upper()} сохранён: {output}"
         return self.get_state()
 
 
@@ -236,7 +261,7 @@ def main() -> None:
         height=760,
         min_size=(860, 620),
     )
-    api.set_window(window)
+    _set_active_window(window)
     webview.start(debug=False)
 
 
