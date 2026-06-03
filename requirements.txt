@@ -1,0 +1,4 @@
+# pywebview provides the desktop web UI shell.
+pywebview>=5.0
+# pywin32 is only required on Windows when exporting directly to KOMPAS-3D.
+pywin32>=306; platform_system == "Windows"
