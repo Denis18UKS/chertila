@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from math import cos, radians, sin
-
 from .model import Arc, Circle, Drawing, Line, LineStyle, Point, Polyline, Text
 
 
@@ -19,76 +17,83 @@ def _dimension(x1: float, y1: float, x2: float, y2: float, label: str, tx: float
     )
 
 
-def _regular_polygon(cx: float, cy: float, radius: float, sides: int, rotation_deg: float = 0) -> Polyline:
-    points = [
-        Point(cx + radius * cos(radians(rotation_deg + i * 360 / sides)), cy + radius * sin(radians(rotation_deg + i * 360 / sides)))
-        for i in range(sides)
-    ]
-    return Polyline(points, closed=True)
-
-
 def screenshot_1_variant_14() -> Drawing:
-    """Variant 14 from the first screenshot: cone over hemisphere, circle with hexagon below."""
+    """Variant 14 from the first screenshot: cone over hemisphere and two concentric circles below."""
     entities: list = []
     cx = 100
-    entities.extend(_center_mark(cx, 92, 105))
-    entities.append(Polyline([Point(cx - 36, 112), Point(cx, 20), Point(cx + 36, 112)], closed=True))
-    entities.append(Arc(Point(cx, 112), 40, 0, 180))
-    entities.append(Line(Point(cx - 40, 112), Point(cx + 40, 112)))
-    entities.append(Line(Point(cx, 20), Point(cx, 160), LineStyle.CENTER))
-    entities.extend(_dimension(154, 20, 154, 130, "110", 160, 78))
-    entities.append(Text(Point(122, 54), "α не", 6))
 
-    entities.extend(_center_mark(cx, 240, 105))
-    entities.append(Circle(Point(cx, 240), 40))
-    entities.append(Circle(Point(cx, 240), 30))
-    entities.append(_regular_polygon(cx, 240, 30, 6, 30))
-    for angle in (30, 90, 150):
-        dx = 30 * cos(radians(angle))
-        dy = 30 * sin(radians(angle))
-        entities.append(Line(Point(cx - dx, 240 - dy), Point(cx + dx, 240 + dy)))
-    entities.extend(_dimension(58, 200, 58, 260, "⌀60", 37, 232))
-    entities.append(Text(Point(132, 202), "⌀80", 6))
-    return Drawing("variant_14_screenshot_1_horizontal", 200, 300, "horizontal", tuple(entities))
+    entities.extend(_center_mark(cx, 106, 118))
+    entities.append(Polyline([Point(cx - 36, 125), Point(cx, 20), Point(cx + 36, 125)], closed=True))
+    entities.append(Arc(Point(cx, 125), 40, 0, 180))
+    entities.append(Line(Point(cx - 40, 125), Point(cx + 40, 125)))
+    entities.append(Line(Point(cx, 20), Point(cx, 170), LineStyle.CENTER))
+    entities.extend(_dimension(160, 20, 160, 130, "110", 166, 78))
+    entities.append(Text(Point(124, 58), "α не", 6))
+
+    entities.extend(_center_mark(cx, 245, 110))
+    entities.append(Circle(Point(cx, 245), 40))
+    entities.append(Circle(Point(cx, 245), 30))
+    entities.extend(_dimension(58, 215, 58, 275, "⌀60", 38, 248))
+    entities.append(Line(Point(123, 217), Point(151, 205), LineStyle.DIMENSION))
+    entities.append(Text(Point(134, 204), "⌀80", 6))
+    return Drawing("variant_14_screenshot_1_horizontal", 200, 310, "horizontal", tuple(entities))
 
 
 def screenshot_2_variant_14() -> Drawing:
-    """Variant 14 from the second screenshot: prism/frustum above rectangle and circle under rectangle."""
+    """Variant 14 from the second screenshot: frustum over rectangle and circle under rectangle."""
     entities: list = []
     cx = 100
-    entities.append(Polyline([Point(40, 86), Point(40, 162), Point(160, 162), Point(160, 86)], closed=True))
-    entities.append(Polyline([Point(50, 50), Point(150, 50), Point(134, 86), Point(66, 86)], closed=True))
-    entities.append(Polyline([Point(50, 50), Point(cx, 162), Point(150, 50)], closed=False, style=LineStyle.CONSTRUCTION))
-    entities.extend(_center_mark(cx, 124, 130))
-    entities.extend(_dimension(174, 50, 174, 150, "100", 180, 104))
-    entities.extend(_dimension(74, 50, 74, 130, "80", 58, 92))
 
-    entities.append(Polyline([Point(40, 215), Point(40, 295), Point(160, 295), Point(160, 215)], closed=True))
-    entities.append(Circle(Point(cx, 295), 55))
-    entities.extend(_center_mark(cx, 295, 135))
-    entities.extend(_dimension(40, 200, 160, 200, "120", 90, 192))
-    entities.extend(_dimension(168, 280, 168, 295, "15", 174, 290))
-    entities.append(Text(Point(127, 350), "⌀110", 6))
-    entities.append(Line(Point(126, 338), Point(152, 326), LineStyle.DIMENSION))
-    return Drawing("variant_14_screenshot_2_horizontal", 210, 370, "horizontal", tuple(entities))
+    entities.append(Polyline([Point(35, 82), Point(35, 162), Point(165, 162), Point(165, 82)], closed=True))
+    entities.append(Polyline([Point(48, 42), Point(152, 42), Point(134, 82), Point(66, 82)], closed=True))
+    entities.append(Polyline([Point(48, 42), Point(cx, 162), Point(152, 42)], closed=False, style=LineStyle.CONSTRUCTION))
+    entities.extend(_center_mark(cx, 122, 135))
+    entities.extend(_dimension(178, 42, 178, 142, "100", 184, 96))
+    entities.extend(_dimension(74, 42, 74, 122, "80", 58, 86))
+
+    entities.append(Polyline([Point(40, 220), Point(40, 300), Point(160, 300), Point(160, 220)], closed=True))
+    entities.append(Circle(Point(cx, 300), 55))
+    entities.extend(_center_mark(cx, 300, 140))
+    entities.extend(_dimension(40, 205, 160, 205, "120", 90, 197))
+    entities.extend(_dimension(172, 285, 172, 300, "15", 178, 295))
+    entities.append(Line(Point(126, 338), Point(154, 352), LineStyle.DIMENSION))
+    entities.append(Text(Point(126, 362), "⌀110", 6))
+    return Drawing("variant_14_screenshot_2_horizontal", 210, 380, "horizontal", tuple(entities))
 
 
 def screenshot_3_variant_14_vertical() -> Drawing:
-    """Variant 14 from the third screenshot: vertical sheet with octagonal body and side boss."""
+    """Variant 14 from the third screenshot: vertical view with faceted body and left cylindrical boss."""
     entities: list = []
     cx, cy = 125, 150
-    entities.append(_regular_polygon(cx, cy, 55, 8, 22.5))
-    entities.append(Polyline([Point(42, 116), Point(80, 116), Point(80, 184), Point(42, 184)], closed=True))
+
+    entities.append(
+        Polyline(
+            [
+                Point(82, 110),
+                Point(110, 70),
+                Point(170, 70),
+                Point(205, 96),
+                Point(205, 204),
+                Point(180, 230),
+                Point(110, 230),
+                Point(82, 190),
+            ],
+            closed=True,
+        )
+    )
+    entities.append(Polyline([Point(42, 120), Point(82, 120), Point(82, 180), Point(42, 180)], closed=True))
     entities.append(Circle(Point(cx, cy), 45, LineStyle.CONSTRUCTION))
-    entities.extend(_center_mark(cx, cy, 145))
-    entities.extend(_dimension(82, 50, 142, 50, "60", 110, 42))
-    entities.extend(_dimension(184, 90, 184, 210, "120", 190, 152))
-    entities.extend(_dimension(96, 100, 96, 160, "⌀60", 76, 132))
-    entities.extend(_dimension(146, 105, 146, 195, "⌀90", 152, 150))
-    entities.extend(_dimension(80, 232, 170, 232, "⌀90", 114, 244))
-    entities.append(Text(Point(108, 204), "R90", 6))
-    entities.append(Text(Point(52, 200), "P", 6))
-    return Drawing("variant_14_screenshot_3_vertical", 250, 300, "vertical", tuple(entities))
+    entities.extend(_center_mark(cx, cy, 155))
+    entities.extend(_dimension(110, 48, 170, 48, "60", 137, 40))
+    entities.extend(_dimension(214, 90, 214, 210, "120", 220, 154))
+    entities.extend(_dimension(96, 120, 96, 180, "⌀60", 70, 153))
+    entities.extend(_dimension(150, 105, 150, 195, "⌀90", 156, 150))
+    entities.extend(_dimension(90, 248, 180, 248, "⌀90", 122, 260))
+    entities.append(Line(Point(105, 205), Point(130, 178), LineStyle.DIMENSION))
+    entities.append(Text(Point(112, 204), "R90", 6))
+    entities.append(Line(Point(52, 206), Point(72, 184), LineStyle.DIMENSION))
+    entities.append(Text(Point(48, 220), "P", 6))
+    return Drawing("variant_14_screenshot_3_vertical", 260, 310, "vertical", tuple(entities))
 
 
 def all_drawings() -> dict[str, Drawing]:

@@ -107,34 +107,94 @@ def save_dxf(drawing: Drawing, path: str | Path) -> Path:
     return output
 
 
-def export_to_kompas(drawing: Drawing) -> None:
-    """Create the drawing in KOMPAS-3D through its COM 2D API.
+KO_DOCUMENT_PARAM = 35
+LT_DOC_SHEET_STANDARD = 1
 
-    The function intentionally uses late-bound classic 2D methods because they
-    are available in many KOMPAS-3D releases. It should be called on Windows
-    with KOMPAS-3D installed and pywin32 available.
-    """
+
+def _dispatch_kompas_api5(win32com_client):
+    """Connect to KOMPAS API5 and prefer a typed KompasObject wrapper."""
     try:
-        import win32com.client
-    except ImportError as exc:
-        raise RuntimeError("Для экспорта в КОМПАС-3D установите pywin32 и запустите программу в Windows.") from exc
+        module5 = win32com_client.gencache.EnsureModule(
+            "{0422828C-F174-495E-AC5D-D31014DBBE87}", 0, 1, 0
+        )
+        return win32com_client.Dispatch(
+            "KOMPAS.Application.5", None, module5.KompasObject.CLSID
+        )
+    except Exception:
+        return win32com_client.Dispatch("KOMPAS.Application.5")
 
+
+def _set_com_property(obj, name: str, value) -> None:
+    setter = getattr(obj, f"Set{name[:1].upper()}{name[1:]}", None)
+    if callable(setter):
+        setter(value)
+        return
+    setattr(obj, name, value)
+
+
+def _create_document2d(kompas, win32com_client):
+    """Create a visible 2D drawing and return the API5 ksDocument2D object."""
     try:
-        kompas = win32com.client.Dispatch("KOMPAS.Application.5")
-    except Exception as exc:  # noqa: BLE001 - COM raises many implementation-specific exceptions.
-        raise RuntimeError("Не удалось подключиться к COM API КОМПАС-3D (KOMPAS.Application.5).") from exc
+        document = kompas.Document2D()
+    except Exception:
+        return _create_document2d_with_api7(kompas, win32com_client)
 
-    kompas.Visible = True
-    document = kompas.Document2D()
-    document.ksCreateDocument("", 0)
+    document_param = kompas.GetParamStruct(KO_DOCUMENT_PARAM)
+    _set_com_property(document_param, "type", LT_DOC_SHEET_STANDARD)
+    _set_com_property(document_param, "regime", 0)
+    created = document.ksCreateDocument(document_param)
+    if not created:
+        raise RuntimeError("КОМПАС-3D вернул отказ при создании 2D-чертежа.")
+    return document
 
+
+def _create_document2d_with_api7(kompas, win32com_client):
+    """Create a drawing through API7 when API5 Document2D is unavailable."""
+    application7 = None
+    try:
+        application7 = kompas.ksGetApplication7()
+    except Exception:
+        try:
+            application7 = win32com_client.Dispatch("KOMPAS.Application.7")
+        except Exception as exc:
+            raise RuntimeError(
+                "Не удалось получить интерфейс Document2D API5 или создать чертёж через API7."
+            ) from exc
+
+    application7.Visible = True
+    for args in ((LT_DOC_SHEET_STANDARD, True), (LT_DOC_SHEET_STANDARD,), (LT_DOC_SHEET_STANDARD, "", True)):
+        try:
+            application7.Documents.Add(*args)
+            break
+        except Exception:
+            continue
+    else:
+        raise RuntimeError("Не удалось создать новый чертёж через KOMPAS API7 Documents.Add.")
+
+    for api5 in (kompas, _dispatch_kompas_api5(win32com_client)):
+        try:
+            return api5.ActiveDocument2D()
+        except Exception:
+            continue
+    raise RuntimeError("Чертёж создан, но API5 ActiveDocument2D недоступен.")
+
+
+def _draw_to_kompas_document(document, drawing: Drawing) -> None:
     for entity in drawing.entities:
         if isinstance(entity, Line):
             document.ksLineSeg(entity.start.x, -entity.start.y, entity.end.x, -entity.end.y, 1)
         elif isinstance(entity, Circle):
             document.ksCircle(entity.center.x, -entity.center.y, entity.radius, 1)
         elif isinstance(entity, Arc):
-            document.ksArcByAngle(entity.center.x, -entity.center.y, entity.radius, -entity.start_angle, -entity.end_angle, 1, 1)
+            document.ksArcByAngle(
+                entity.center.x,
+                -entity.center.y,
+                entity.radius,
+                -entity.start_angle,
+                -entity.end_angle,
+                1,
+                1,
+            )
         elif isinstance(entity, Polyline):
             pts = list(entity.points)
             for first, second in zip(pts, pts[1:]):
@@ -142,6 +202,38 @@ def export_to_kompas(drawing: Drawing) -> None:
             if entity.closed and len(pts) > 1:
                 document.ksLineSeg(pts[-1].x, -pts[-1].y, pts[0].x, -pts[0].y, 1)
         elif isinstance(entity, Text):
-            paragraph = document.ksParagraph(entity.position.x, -entity.position.y, 0, entity.size, 0)
-            paragraph.ksTextLine(entity.value, 0)
-            paragraph.ksEndObj()
+            try:
+                paragraph = document.ksParagraph(entity.position.x, -entity.position.y, 0, entity.size, 0)
+                paragraph.ksTextLine(entity.value, 0)
+                paragraph.ksEndObj()
+            except Exception:
+                # Text is auxiliary in these previews; geometry export must not fail because
+                # a specific KOMPAS version exposes a different text API signature.
+                continue
+
+
+def export_to_kompas(drawing: Drawing) -> None:
+    """Create the drawing in KOMPAS-3D through its COM 2D API.
+
+    The function uses API5 ksDocument2D primitives for geometry, but it can
+    create the document through API7 when a KOMPAS installation does not expose
+    KompasObject.Document2D via late-bound COM.
+    """
+    try:
+        import win32com.client
+    except ImportError as exc:
+        raise RuntimeError("Для экспорта в КОМПАС-3D установите pywin32 и запустите программу в Windows.") from exc
+
+    try:
+        kompas = _dispatch_kompas_api5(win32com.client)
+    except Exception as exc:  # noqa: BLE001 - COM raises many implementation-specific exceptions.
+        raise RuntimeError("Не удалось подключиться к COM API КОМПАС-3D (KOMPAS.Application.5).") from exc
+
+    try:
+        kompas.Visible = True
+        document = _create_document2d(kompas, win32com.client)
+        _draw_to_kompas_document(document, drawing)
+    except RuntimeError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - return a readable message to pywebview instead of a raw COM traceback.
+        raise RuntimeError(f"Ошибка построения чертежа в КОМПАС-3D: {exc}") from exc
